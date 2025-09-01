@@ -16,7 +16,9 @@ The main page works but `/dashboard` returns 500 error.
 Try these URLs to isolate the issue:
 - `https://fintrace-y08p.onrender.com/ping` - Should return "OK"
 - `https://fintrace-y08p.onrender.com/test-dashboard` - Should return "Dashboard test route works!"
-- `https://fintrace-y08p.onrender.com/dashboard` - Currently failing
+- `https://fintrace-y08p.onrender.com/test-db` - Test database connection
+- `https://fintrace-y08p.onrender.com/debug-env` - Check environment variables
+- `https://fintrace-y08p.onrender.com/dashboard` - Now uses simple template for testing
 
 ### 3. Common Issues & Solutions
 

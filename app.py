@@ -21,8 +21,18 @@ import time
   
 app = Flask(__name__)
 # Database configuration - use environment variable if available
-database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'transactions.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f'sqlite:///{database_path}')
+database_url = os.environ.get('DATABASE_URL')
+print(f"Database URL: {database_url}")
+
+if database_url:
+    # Production (Render) - use the provided DATABASE_URL
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Development - use local SQLite
+    database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'transactions.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{database_path}'
+
+print(f"Final database URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Configure SQLAlchemy based on environment
 if os.environ.get('DATABASE_URL'):
@@ -370,15 +380,59 @@ def test_dashboard():
     except Exception as e:
         return f"Test error: {str(e)}", 500
 
+@app.route('/test-db')
+def test_database():
+    """Test database connection and initialization"""
+    try:
+        with app.app_context():
+            db.create_all()
+            # Try a simple query
+            count = Transaction.query.count()
+            return f"Database connection successful. Transaction count: {count}"
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return f"Database error: {str(e)}", 500
+
+@app.route('/debug-env')
+def debug_environment():
+    """Debug environment variables and configuration"""
+    try:
+        env_info = {
+            'DATABASE_URL': os.environ.get('DATABASE_URL', 'Not set'),
+            'FLASK_ENV': os.environ.get('FLASK_ENV', 'Not set'),
+            'FLASK_DEBUG': os.environ.get('FLASK_DEBUG', 'Not set'),
+            'SECRET_KEY': 'Set' if os.environ.get('SECRET_KEY') else 'Not set',
+            'SQLALCHEMY_DATABASE_URI': app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')
+        }
+        return jsonify(env_info)
+    except Exception as e:
+        return f"Environment debug error: {str(e)}", 500
+
 @app.route('/dashboard')
 def dashboard():
     try:
         # Initialize database if needed
         with app.app_context():
             db.create_all()
-        return render_template_string(HTML_TEMPLATE)
+            print("Database initialized successfully")
+        
+        # Try to render a simple template first
+        simple_template = '''
+        <!DOCTYPE html>
+        <html>
+        <head><title>FinTrace Dashboard</title></head>
+        <body>
+            <h1>FinTrace Dashboard</h1>
+            <p>Dashboard is working!</p>
+        </body>
+        </html>
+        '''
+        return render_template_string(simple_template)
     except Exception as e:
         print(f"Dashboard error: {e}")
+        import traceback
+        traceback.print_exc()
         return f"Dashboard Error: {str(e)}", 500
 
 # API route decorator (no login required)
