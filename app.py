@@ -24,11 +24,20 @@ app = Flask(__name__)
 database_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'transactions.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', f'sqlite:///{database_path}')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-    'pool_recycle': 300,
-    'connect_args': {'check_same_thread': False, 'timeout': 30}
-}
+# Configure SQLAlchemy based on environment
+if os.environ.get('DATABASE_URL'):
+    # Production (Render) - PostgreSQL
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
+else:
+    # Development - SQLite
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'connect_args': {'check_same_thread': False, 'timeout': 30}
+    }
 
 # Secret key configuration - use environment variable if available
 app.secret_key = os.environ.get('SECRET_KEY', 'supersecretkey')  # Needed for session
@@ -353,9 +362,24 @@ def ping():
     """Absolute minimal health check - ZERO database access"""
     return ping_handler()
 
+@app.route('/test-dashboard')
+def test_dashboard():
+    """Simple test route to check if basic dashboard works"""
+    try:
+        return "Dashboard test route works!"
+    except Exception as e:
+        return f"Test error: {str(e)}", 500
+
 @app.route('/dashboard')
 def dashboard():
-    return render_template_string(HTML_TEMPLATE)
+    try:
+        # Initialize database if needed
+        with app.app_context():
+            db.create_all()
+        return render_template_string(HTML_TEMPLATE)
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        return f"Dashboard Error: {str(e)}", 500
 
 # API route decorator (no login required)
 def protected_api_route(rule, **options):
