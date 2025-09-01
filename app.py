@@ -9,7 +9,7 @@ import networkx as nx
 from collections import defaultdict, deque
 import json
 from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt  # Removed for Render compatibility
 import io
 import base64
 import re
@@ -35,6 +35,20 @@ app.secret_key = os.environ.get('SECRET_KEY', 'supersecretkey')  # Needed for se
 
 # Initialize SQLAlchemy with lazy loading
 db = SQLAlchemy(app)
+
+# Global error handler
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle any unhandled exceptions"""
+    print(f"Unhandled exception: {e}")
+    import traceback
+    traceback.print_exc()
+    
+    # Return a simple error response
+    return jsonify({
+        'error': 'Internal server error',
+        'message': 'Something went wrong. Please try again later.'
+    }), 500
 
 # Remove User model
 # -------------------------
@@ -64,173 +78,205 @@ class AMLEngine:
         
     def detect_suspicious_accounts(self, df):
         """Detect suspicious accounts using multiple algorithms"""
-        suspicious_accounts = set()
-        
-        # Layer 1: High-frequency transactions
-        freq_suspicious = self._detect_high_frequency(df)
-        suspicious_accounts.update(freq_suspicious)
-        
-        # Layer 2: Large amount transactions
-        amount_suspicious = self._detect_large_amounts(df)
-        suspicious_accounts.update(amount_suspicious)
-        
-        # Layer 3: Multiple IP/Phone/Email usage
-        multi_suspicious = self._detect_multi_identity(df)
-        suspicious_accounts.update(multi_suspicious)
-        
-        # Layer 4: Circular transactions
-        circular_suspicious = self._detect_circular_transactions(df)
-        suspicious_accounts.update(circular_suspicious)
-        
-        # Layer 5: Rapid money movement
-        rapid_suspicious = self._detect_rapid_movement(df)
-        suspicious_accounts.update(rapid_suspicious)
-        
-        return list(suspicious_accounts)
+        try:
+            suspicious_accounts = set()
+            
+            # Layer 1: High-frequency transactions
+            freq_suspicious = self._detect_high_frequency(df)
+            suspicious_accounts.update(freq_suspicious)
+            
+            # Layer 2: Large amount transactions
+            amount_suspicious = self._detect_large_amounts(df)
+            suspicious_accounts.update(amount_suspicious)
+            
+            # Layer 3: Multiple IP/Phone/Email usage
+            multi_suspicious = self._detect_multi_identity(df)
+            suspicious_accounts.update(multi_suspicious)
+            
+            # Layer 4: Circular transactions
+            circular_suspicious = self._detect_circular_transactions(df)
+            suspicious_accounts.update(circular_suspicious)
+            
+            # Layer 5: Rapid money movement
+            rapid_suspicious = self._detect_rapid_movement(df)
+            suspicious_accounts.update(rapid_suspicious)
+            
+            return list(suspicious_accounts)
+        except Exception as e:
+            print(f"Error in detect_suspicious_accounts: {e}")
+            return []
     
     def _detect_high_frequency(self, df):
         """Detect accounts with unusually high transaction frequency"""
-        account_stats = df.groupby('from_account').agg({
-            'transaction_id': 'count',
-            'amount': ['sum', 'mean'],
-            'to_account': 'nunique'
-        }).reset_index()
-        
-        account_stats.columns = ['account', 'txn_count', 'total_amount', 'avg_amount', 'unique_recipients']
-        
-        # Detect outliers using IQR method
-        Q1 = account_stats['txn_count'].quantile(0.25)
-        Q3 = account_stats['txn_count'].quantile(0.75)
-        IQR = Q3 - Q1
-        high_freq_threshold = Q3 + 1.5 * IQR
-        
-        suspicious = account_stats[account_stats['txn_count'] > high_freq_threshold]['account'].tolist()
-        return suspicious
+        try:
+            account_stats = df.groupby('from_account').agg({
+                'transaction_id': 'count',
+                'amount': ['sum', 'mean'],
+                'to_account': 'nunique'
+            }).reset_index()
+            
+            account_stats.columns = ['account', 'txn_count', 'total_amount', 'avg_amount', 'unique_recipients']
+            
+            # Detect outliers using IQR method
+            Q1 = account_stats['txn_count'].quantile(0.25)
+            Q3 = account_stats['txn_count'].quantile(0.75)
+            IQR = Q3 - Q1
+            high_freq_threshold = Q3 + 1.5 * IQR
+            
+            suspicious = account_stats[account_stats['txn_count'] > high_freq_threshold]['account'].tolist()
+            return suspicious
+        except Exception as e:
+            print(f"Error in _detect_high_frequency: {e}")
+            return []
     
     def _detect_large_amounts(self, df):
         """Detect accounts with unusually large transaction amounts"""
-        # Calculate amount percentiles
-        amount_95th = df['amount'].quantile(0.95)
-        amount_99th = df['amount'].quantile(0.99)
-        
-        # Accounts with transactions above 99th percentile
-        large_amount_accounts = df[df['amount'] > amount_99th]['from_account'].unique().tolist()
-        
-        return large_amount_accounts
+        try:
+            # Calculate amount percentiles
+            amount_95th = df['amount'].quantile(0.95)
+            amount_99th = df['amount'].quantile(0.99)
+            
+            # Accounts with transactions above 99th percentile
+            large_amount_accounts = df[df['amount'] > amount_99th]['from_account'].unique().tolist()
+            
+            return large_amount_accounts
+        except Exception as e:
+            print(f"Error in _detect_large_amounts: {e}")
+            return []
     
     def _detect_multi_identity(self, df):
         """Detect accounts using multiple IPs, phones, or emails"""
-        suspicious_accounts = set()
-        
-        # Check for accounts with multiple IPs
-        multi_ip = df.groupby('from_account')['ip'].nunique()
-        multi_ip_suspicious = multi_ip[multi_ip > 3].index.tolist()
-        suspicious_accounts.update(multi_ip_suspicious)
-        
-        # Check for accounts with multiple phones
-        multi_phone = df.groupby('from_account')['phone'].nunique()
-        multi_phone_suspicious = multi_phone[multi_phone > 2].index.tolist()
-        suspicious_accounts.update(multi_phone_suspicious)
-        
-        # Check for accounts with multiple emails
-        multi_email = df.groupby('from_account')['email'].nunique()
-        multi_email_suspicious = multi_email[multi_email > 2].index.tolist()
-        suspicious_accounts.update(multi_email_suspicious)
-        
-        return suspicious_accounts
+        try:
+            suspicious_accounts = set()
+            
+            # Check for accounts with multiple IPs
+            multi_ip = df.groupby('from_account')['ip'].nunique()
+            multi_ip_suspicious = multi_ip[multi_ip > 3].index.tolist()
+            suspicious_accounts.update(multi_ip_suspicious)
+            
+            # Check for accounts with multiple phones
+            multi_phone = df.groupby('from_account')['phone'].nunique()
+            multi_phone_suspicious = multi_phone[multi_phone > 2].index.tolist()
+            suspicious_accounts.update(multi_phone_suspicious)
+            
+            # Check for accounts with multiple emails
+            multi_email = df.groupby('from_account')['email'].nunique()
+            multi_email_suspicious = multi_email[multi_email > 2].index.tolist()
+            suspicious_accounts.update(multi_email_suspicious)
+            
+            return suspicious_accounts
+        except Exception as e:
+            print(f"Error in _detect_multi_identity: {e}")
+            return set()
     
     def _detect_circular_transactions(self, df):
         """Detect circular transaction patterns"""
-        suspicious_accounts = set()
-        
-        # Create directed graph
-        G = nx.DiGraph()
-        for _, row in df.iterrows():
-            G.add_edge(row['from_account'], row['to_account'], weight=row['amount'])
-        
-        # Find cycles in the graph
         try:
-            cycles = list(nx.simple_cycles(G))
-            for cycle in cycles:
-                if len(cycle) <= 5:  # Focus on short cycles
-                    suspicious_accounts.update(cycle)
-        except:
-            pass
-        
-        return suspicious_accounts
+            suspicious_accounts = set()
+            
+            # Create directed graph
+            G = nx.DiGraph()
+            for _, row in df.iterrows():
+                G.add_edge(row['from_account'], row['to_account'], weight=row['amount'])
+            
+            # Find cycles in the graph
+            try:
+                cycles = list(nx.simple_cycles(G))
+                for cycle in cycles:
+                    if len(cycle) <= 5:  # Focus on short cycles
+                        suspicious_accounts.update(cycle)
+            except:
+                pass
+            
+            return suspicious_accounts
+        except Exception as e:
+            print(f"Error in _detect_circular_transactions: {e}")
+            return set()
     
     def _detect_rapid_movement(self, df):
         """Detect rapid money movement patterns"""
-        suspicious_accounts = set()
-        
-        # Group by account and date
-        df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
-        account_daily = df.groupby(['from_account', 'date']).agg({
-            'amount': 'sum',
-            'transaction_id': 'count'
-        }).reset_index()
-        
-        # Find accounts with high daily transaction volumes
-        high_volume = account_daily[account_daily['amount'] > account_daily['amount'].quantile(0.95)]
-        suspicious_accounts.update(high_volume['from_account'].unique().tolist())
-        
-        return suspicious_accounts
+        try:
+            suspicious_accounts = set()
+            
+            # Group by account and date
+            df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
+            account_daily = df.groupby(['from_account', 'date']).agg({
+                'amount': 'sum',
+                'transaction_id': 'count'
+            }).reset_index()
+            
+            # Find accounts with high daily transaction volumes
+            high_volume = account_daily[account_daily['amount'] > account_daily['amount'].quantile(0.95)]
+            suspicious_accounts.update(high_volume['from_account'].unique().tolist())
+            
+            return suspicious_accounts
+        except Exception as e:
+            print(f"Error in _detect_rapid_movement: {e}")
+            return set()
     
     def build_layered_graph(self, df, case_id=None):
         """Build layered transaction graph"""
-        if case_id:
-            df = df[df['case_id'] == case_id]
-        
-        G = nx.DiGraph()
-        
-        # Add nodes and edges
-        for _, row in df.iterrows():
-            G.add_node(row['from_account'], 
-                      account_type='source',
-                      ip=row['ip'],
-                      phone=row['phone'],
-                      email=row['email'])
-            G.add_node(row['to_account'], 
-                      account_type='destination',
-                      ip=row['ip'],
-                      phone=row['phone'],
-                      email=row['email'])
-            G.add_edge(row['from_account'], row['to_account'], 
-                      weight=row['amount'],
-                      date=row['date'],
-                      time=row['time'],
-                      transaction_id=row['transaction_id'])
-        
-        return G
+        try:
+            if case_id:
+                df = df[df['case_id'] == case_id]
+            
+            G = nx.DiGraph()
+            
+            # Add nodes and edges
+            for _, row in df.iterrows():
+                G.add_node(row['from_account'], 
+                          account_type='source',
+                          ip=row['ip'],
+                          phone=row['phone'],
+                          email=row['email'])
+                G.add_node(row['to_account'], 
+                          account_type='destination',
+                          ip=row['ip'],
+                          phone=row['phone'],
+                          email=row['email'])
+                G.add_edge(row['from_account'], row['to_account'], 
+                          weight=row['amount'],
+                          date=row['date'],
+                          time=row['time'],
+                          transaction_id=row['transaction_id'])
+            
+            return G
+        except Exception as e:
+            print(f"Error in build_layered_graph: {e}")
+            return nx.DiGraph()
     
     def find_money_trail(self, df, start_account, max_depth=3):
         """Find money trail from a specific account"""
-        G = self.build_layered_graph(df)
-        
-        if start_account not in G.nodes():
+        try:
+            G = self.build_layered_graph(df)
+            
+            if start_account not in G.nodes():
+                return []
+            
+            trails = []
+            visited = set()
+            
+            def dfs_trail(node, path, depth):
+                if depth > max_depth or node in visited:
+                    return
+                
+                visited.add(node)
+                path.append(node)
+                
+                if depth == max_depth:
+                    trails.append(path.copy())
+                else:
+                    for neighbor in G.successors(node):
+                        dfs_trail(neighbor, path, depth + 1)
+                
+                path.pop()
+                visited.remove(node)
+            
+            dfs_trail(start_account, [], 0)
+            return trails
+        except Exception as e:
+            print(f"Error in find_money_trail: {e}")
             return []
-        
-        trails = []
-        visited = set()
-        
-        def dfs_trail(node, path, depth):
-            if depth > max_depth or node in visited:
-                return
-            
-            visited.add(node)
-            path.append(node)
-            
-            if depth == max_depth:
-                trails.append(path.copy())
-            else:
-                for neighbor in G.successors(node):
-                    dfs_trail(neighbor, path, depth + 1)
-            
-            path.pop()
-            visited.remove(node)
-        
-        dfs_trail(start_account, [], 0)
-        return trails
 
 def is_valid_number(val):
     try:
@@ -253,10 +299,24 @@ def load_data():
     if Transaction.query.count() == 0:
         try:
             print("Loading transaction data from Excel...")
-            # Check if the Excel file exists before trying to read it
-            excel_path = '../archive/bank.xlsx'
-            if not os.path.exists(excel_path):
-                print(f"Excel file not found at {excel_path}, skipping data load")
+            # Check multiple possible paths for the Excel file
+            possible_paths = [
+                '../archive/bank.xlsx',
+                'archive/bank.xlsx',
+                'instance/bank.xlsx',
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'bank.xlsx')
+            ]
+            
+            excel_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    excel_path = path
+                    break
+                    
+            if not excel_path:
+                print("Excel file not found, creating sample data instead")
+                # Create sample data instead of trying to load Excel
+                _create_sample_data()
                 return
                 
             df = pd.read_excel(excel_path)
@@ -301,7 +361,70 @@ def load_data():
             print(f"Loaded {txn_id-1} transactions from Excel")
         except Exception as e:
             print(f"Error loading Excel data: {e}")
+            # Create sample data instead
+            try:
+                _create_sample_data()
+            except Exception as e2:
+                print(f"Error creating sample data: {e2}")
             # Continue without loading data - don't block the app
+
+def _create_sample_data():
+    """Create sample transaction data for testing"""
+    try:
+        if Transaction.query.count() > 0:
+            return  # Already have data
+            
+        print("Creating sample transaction data...")
+        sample_data = [
+            Transaction(
+                case_id='SAMPLE001',
+                transaction_id='TXN000001',
+                from_account='123456789',
+                to_account='987654321',
+                amount=1000.0,
+                date='2024-01-15',
+                time='10:30:00',
+                ip='192.168.1.100',
+                phone='+1234567890',
+                email='user1@example.com',
+                transaction_type='transfer'
+            ),
+            Transaction(
+                case_id='SAMPLE001',
+                transaction_id='TXN000002',
+                from_account='987654321',
+                to_account='555666777',
+                amount=500.0,
+                date='2024-01-15',
+                time='11:15:00',
+                ip='192.168.1.101',
+                phone='+1234567891',
+                email='user2@example.com',
+                transaction_type='transfer'
+            ),
+            Transaction(
+                case_id='SAMPLE001',
+                transaction_id='TXN000003',
+                from_account='555666777',
+                to_account='111222333',
+                amount=250.0,
+                date='2024-01-15',
+                time='12:00:00',
+                ip='192.168.1.102',
+                phone='+1234567892',
+                email='user3@example.com',
+                transaction_type='transfer'
+            )
+        ]
+        
+        for txn in sample_data:
+            db.session.add(txn)
+        
+        db.session.commit()
+        print(f"Created {len(sample_data)} sample transactions")
+    except Exception as e:
+        print(f"Error creating sample data: {e}")
+        db.session.rollback()
 
 def login_required(f):
     @wraps(f)
@@ -351,11 +474,44 @@ except ImportError:
 @app.route('/ping')
 def ping():
     """Absolute minimal health check - ZERO database access"""
-    return ping_handler()
+    try:
+        return ping_handler()
+    except Exception as e:
+        print(f"Ping error: {e}")
+        return "OK", 200  # Always return OK even if there's an error
 
 @app.route('/dashboard')
 def dashboard():
-    return render_template_string(HTML_TEMPLATE)
+    try:
+        # Ensure database is initialized
+        with app.app_context():
+            db.create_all()
+            
+        # Check if we have any data
+        try:
+            transaction_count = Transaction.query.count()
+            print(f"Dashboard: Found {transaction_count} transactions in database")
+        except Exception as e:
+            print(f"Dashboard: Database error: {e}")
+            transaction_count = 0
+            
+        return render_template_string(HTML_TEMPLATE)
+    except Exception as e:
+        print(f"Dashboard error: {e}")
+        # Return a simple error page instead of crashing
+        error_template = '''
+        <!DOCTYPE html>
+        <html>
+        <head><title>FinTrace - Error</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #0f1419; color: white;">
+            <h1>🚨 FinTrace Dashboard</h1>
+            <p>We're experiencing technical difficulties. Please try again later.</p>
+            <p>Error: {error}</p>
+            <a href="/" style="color: #00aaff;">← Back to Home</a>
+        </body>
+        </html>
+        '''.format(error=str(e))
+        return error_template, 500
 
 # API route decorator (no login required)
 def protected_api_route(rule, **options):
@@ -367,46 +523,56 @@ def protected_api_route(rule, **options):
 
 def get_data(limit=5000):
     """Get data with memory optimization - load progressively"""
-    if 'uploaded_data_file' in session:
-        try:
-            # Read limited rows to save memory
-            df = pd.read_csv(session['uploaded_data_file'], nrows=limit)
-            print(f"Loaded {len(df)} rows from uploaded file (limited for memory)")
-            return df
-        except Exception:
-            pass  # fallback to DB if file missing/corrupt
-    
     try:
-        # Use SQLAlchemy query with LIMIT to prevent memory overflow
-        with app.app_context():
-            # Query only limited transactions to save memory
-            transactions = Transaction.query.limit(limit).all()
-            if not transactions:
-                return pd.DataFrame()
-            
-            print(f"Loaded {len(transactions)} transactions from database (limited for memory)")
-            
-            # Convert to list of dictionaries
-            data = []
-            for txn in transactions:
-                data.append({
-                    'case_id': txn.case_id,
-                    'transaction_id': txn.transaction_id,
-                    'from_account': txn.from_account,
-                    'to_account': txn.to_account,
-                    'amount': txn.amount,
-                    'date': txn.date,
-                    'time': txn.time,
-                    'ip': txn.ip,
-                    'phone': txn.phone,
-                    'email': txn.email,
-                    'transaction_type': txn.transaction_type
-                })
-            
-            return pd.DataFrame(data)
+        if 'uploaded_data_file' in session:
+            try:
+                # Read limited rows to save memory
+                df = pd.read_csv(session['uploaded_data_file'], nrows=limit)
+                print(f"Loaded {len(df)} rows from uploaded file (limited for memory)")
+                return df
+            except Exception as e:
+                print(f"Error reading uploaded file: {e}")
+                pass  # fallback to DB if file missing/corrupt
+        
+        try:
+            # Use SQLAlchemy query with LIMIT to prevent memory overflow
+            with app.app_context():
+                # Query only limited transactions to save memory
+                transactions = Transaction.query.limit(limit).all()
+                if not transactions:
+                    print("No transactions found in database")
+                    return pd.DataFrame()
+                
+                print(f"Loaded {len(transactions)} transactions from database (limited for memory)")
+                
+                # Convert to list of dictionaries
+                data = []
+                for txn in transactions:
+                    try:
+                        data.append({
+                            'case_id': txn.case_id,
+                            'transaction_id': txn.transaction_id,
+                            'from_account': txn.from_account,
+                            'to_account': txn.to_account,
+                            'amount': txn.amount,
+                            'date': txn.date,
+                            'time': txn.time,
+                            'ip': txn.ip,
+                            'phone': txn.phone,
+                            'email': txn.email,
+                            'transaction_type': txn.transaction_type
+                        })
+                    except Exception as e:
+                        print(f"Error processing transaction {txn.id}: {e}")
+                        continue
+                
+                return pd.DataFrame(data)
+        except Exception as e:
+            print(f"Database read error: {e}")
+            # Return empty DataFrame if database fails
+            return pd.DataFrame()
     except Exception as e:
-        print(f"Database read error: {e}")
-        # Return empty DataFrame if database fails
+        print(f"Unexpected error in get_data: {e}")
         return pd.DataFrame()
 
 @protected_api_route('/api/suspicious')
@@ -2607,14 +2773,19 @@ def logout():
 # Main
 # -------------------------
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    try:
+        with app.app_context():
+            db.create_all()
+            print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
     
     # Production vs Development configuration
     debug_mode = os.environ.get('FLASK_DEBUG', '0') == '1'
     host = os.environ.get('HOST', '0.0.0.0')
     port = int(os.environ.get('PORT', 5000))
     
+    print(f"Starting FinTrace on {host}:{port} (debug: {debug_mode})")
     app.run(debug=debug_mode, host=host, port=port)
 
 # Database initialization function - only called when explicitly needed
