@@ -38,12 +38,12 @@ FinTrace is an advanced financial crime detection platform designed for law enfo
 │   Web Interface │    │  Flask Backend  │    │  SQLite Database│
 │   (HTML/CSS/JS) │◄──►│   (Python)      │◄──►│   (Transactions)│
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-                               │
-                               ▼
-                        ┌─────────────────┐
-                        │  AML Engine     │
-                        │  (Detection)    │
-                        └─────────────────┘
+                              │
+                              ▼
+                       ┌─────────────────┐
+                       │  AML Engine     │
+                       │  (Detection)    │
+                       └─────────────────┘
 ```
 
 ## 🚀 Quick Start
@@ -93,7 +93,7 @@ FinTrace is an advanced financial crime detection platform designed for law enfo
 1. **Create a new Web Service on Render**
 2. **Configure:**
    - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `gunicorn runproduction:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120`
+   - **Start Command:** `gunicorn app:app`
    - **Environment:** Python 3
 3. **Set Environment Variables:**
    - `FLASK_ENV`: `production`
@@ -248,7 +248,7 @@ python runproduction.py
 
 ### WSGI Configuration
 ```bash
-gunicorn runproduction:application
+gunicorn app:app
 ```
 
 ## 📝 Configuration
